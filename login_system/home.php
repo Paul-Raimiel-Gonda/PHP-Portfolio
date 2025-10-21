@@ -5,7 +5,7 @@ if (!isset($_SESSION['username'])) {
     exit();
 }
 
-// PAUL RAIMIEL GONDA - content (unchanged, restored)
+ 
 $name_first = "Paul Raimiel";
 $name_last  = "Gonda";
 $title      = "Computer Science Student";
@@ -70,7 +70,7 @@ $organizations = [
   <meta charset="utf-8" />
   <title><?= htmlspecialchars($name_first . ' ' . $name_last) ?> — Portfolio</title>
 
-  <!-- Google fonts -->
+  
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&family=Montserrat:wght@600;800&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="style.css">
@@ -78,16 +78,15 @@ $organizations = [
 </head>
 <body>
 
-  <!-- video background -->
   <video autoplay muted loop id="bg-video" preload="auto">
     <source src="assets/bg.mp4" type="video/mp4">
     Your browser does not support the video tag.
   </video>
 
-  <!-- overlay to improve contrast -->
+ 
   <div class="bg-overlay"></div>
 
-  <!-- NAV -->
+
   <header class="site-header">
     <div class="container header-inner">
       <div class="logo"><?= htmlspecialchars($name_first) ?> <span class="logo-accent"><?= htmlspecialchars($name_last) ?></span></div>
@@ -103,7 +102,6 @@ $organizations = [
     </div>
   </header>
 
-  <!-- HERO -->
   <section id="hero" class="hero-section">
     <div class="container hero-inner">
       <h1 class="hero-title">
@@ -116,7 +114,7 @@ $organizations = [
     </div>
   </section>
 
-  <!-- ABOUT -->
+
   <main>
     <section id="about" class="section">
       <div class="container grid">
@@ -144,7 +142,7 @@ $organizations = [
       </div>
     </section>
 
-    <!-- TRAINING -->
+  
     <section id="training" class="section">
       <div class="container">
         <h2>Seminars & Training</h2>
@@ -164,7 +162,6 @@ $organizations = [
       </div>
     </section>
 
-    <!-- ORGANIZATIONS -->
     <section id="orgs" class="section">
       <div class="container">
         <h2>Organizations</h2>
@@ -180,7 +177,7 @@ $organizations = [
       </div>
     </section>
 
-    <!-- EDUCATION -->
+  
     <section id="education" class="section">
       <div class="container">
         <h2>Education</h2>
@@ -205,14 +202,13 @@ $organizations = [
     </div>
   </footer>
 
-  <!-- small script for smooth offset scrolling (nav to anchor) -->
   <script>
     document.querySelectorAll('a[href^="#"]').forEach(link=>{
       link.addEventListener('click', e=>{
         e.preventDefault();
         const target = document.querySelector(link.getAttribute('href'));
         if(!target) return;
-        const y = target.getBoundingClientRect().top + window.scrollY - 80; // account for header
+        const y = target.getBoundingClientRect().top + window.scrollY - 80; 
         window.scrollTo({ top: y, behavior: 'smooth' });
       });
     });

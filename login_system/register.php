@@ -1,8 +1,7 @@
 <?php
 session_start();
-require 'db.php'; // uses $pdo
+require 'db.php'; 
 
-// redirect if already logged in
 if (isset($_SESSION['username'])) {
     header("Location: home.php");
     exit();
@@ -47,12 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .auth-card{ width:360px; max-width:100%; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03)); border-radius:14px; padding:28px; backdrop-filter:blur(8px); box-shadow: 0 20px 50px rgba(0,0,0,0.6); border:1px solid rgba(255,255,255,0.06); color:#fff; z-index:10000; text-align:center; }
     .auth-card h2{ margin:0 0 12px 0; font-weight:700; font-size:20px; }
     .auth-card input {
-  display: block;        /* force each input to its own line */
-  width: 100%;           /* match button width */
-  max-width: 100%;       /* prevent overflow */
-  height: 42px;          /* align height with button */
+  display: block;       
+  width: 100%;          
+  max-width: 100%;       
+  height: 42px;         
   padding: 0 12px;
-  margin: 10px 0;        /* keep spacing like before */
+  margin: 10px 0;        
   border-radius: 8px;
   border: none;
   font-size: 15px;

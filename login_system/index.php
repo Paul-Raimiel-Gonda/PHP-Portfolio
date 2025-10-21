@@ -14,7 +14,6 @@
       overflow: hidden;
     }
 
-    /* Background video */
     #bg-video {
       position: fixed;
       top: 0; left: 0;
@@ -30,7 +29,6 @@
       z-index: -1;
     }
 
-    /* Landing content */
     .landing {
       height: 100%;
       display: flex;
@@ -90,8 +88,6 @@
       box-shadow: 0 12px 30px rgba(14,165,255,0.4);
     }
 
-   
-    /* Animations */
     @keyframes fadeIn {
       from { opacity: 0; }
       to { opacity: 1; }
@@ -117,7 +113,7 @@
   <div class="landing">
     <h1>STUDENT PORTFOLIO</h1>
     <p>My personal showcase of skills and achievements</p>
-    <a href="login.php">Start</a>
+    <a href="public_resume.php?id=1">Start</a>
   </div>
 </body>
 </html>
