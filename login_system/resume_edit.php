@@ -7,10 +7,10 @@ if (!isset($_SESSION['username'])) {
     exit();
 }
 
-// Shared resume (id = 1)
+
 $resume_id = 1;
 
-// Fetch resume
+
 $stmt = $pdo->prepare("SELECT * FROM resumes WHERE id = :id");
 $stmt->execute(['id' => $resume_id]);
 $resume = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -19,17 +19,17 @@ if (!$resume) {
     die("Resume (id=1) not found. Please ensure a row with id=1 exists in the resumes table.");
 }
 
-// Helper: decode JSON or fallback to reasonable default
+
 function decode_or_lines($value, $default = []) {
     if ($value === null || $value === '') return $default;
     $d = json_decode($value, true);
     if (json_last_error() === JSON_ERROR_NONE && is_array($d)) return $d;
-    // fallback: split by newline, trim and remove empties
+  
     $lines = array_filter(array_map('trim', preg_split("/\r\n|\n|\r/", $value)));
     return $lines ?: $default;
 }
 
-// Load structured fields (support JSON or plain text fallback)
+
 $skills = decode_or_lines($resume['skills'], []);
 $achievements = decode_or_lines($resume['achievements'], []);
 $experience = decode_or_lines($resume['professional_experience'], []);
@@ -37,11 +37,10 @@ $organizations = decode_or_lines($resume['organization'], []);
 $education = decode_or_lines($resume['education'], []);
 $additional_info = decode_or_lines($resume['additional_info'], []);
 
-//
-// Normalize legacy array items into structured objects if needed
-//
+
+
 if (!empty($achievements) && is_array($achievements) && isset($achievements[0]) && is_string($achievements[0])) {
-    // if first item is string -> convert to {title: item, description: ""} (best-effort)
+ 
     $achievements = array_map(function($t){ return ['title'=> $t, 'description'=> '']; }, $achievements);
 }
 if (!empty($experience) && is_array($experience) && isset($experience[0]) && is_string($experience[0])) {
@@ -59,13 +58,13 @@ if (!empty($additional_info) && is_array($additional_info) && isset($additional_
 
 $message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Scalar fields
+
     $name = trim($_POST['name'] ?? '');
     $title = trim($_POST['title'] ?? '');
     $summary = trim($_POST['summary'] ?? '');
     $training = trim($_POST['training'] ?? '');
 
-    // Repeatable lists from POST
+  
     $post_skills = array_values(array_filter(array_map('trim', (array)($_POST['skills'] ?? []))));
     // Achievements: arrays of title/description
     $post_ach = [];
@@ -121,16 +120,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($t !== '' || $c !== '') $post_add[] = ['title'=>$t,'content'=>$c];
     }
 
-    // Build update array and params
+  
     $updates = [];
     $params = [];
-    // Scalars
+  
     $updates[] = "name = :name"; $params['name']=$name;
     $updates[] = "title = :title"; $params['title']=$title;
     $updates[] = "summary = :summary"; $params['summary']=$summary;
     $updates[] = "training = :training"; $params['training']=$training;
 
-    // JSON-encoded columns
     $updates[] = "skills = :skills"; $params['skills'] = json_encode($post_skills, JSON_UNESCAPED_UNICODE);
     $updates[] = "achievements = :achievements"; $params['achievements'] = json_encode($post_ach, JSON_UNESCAPED_UNICODE);
     $updates[] = "professional_experience = :professional_experience"; $params['professional_experience'] = json_encode($post_exp, JSON_UNESCAPED_UNICODE);
@@ -143,12 +141,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 
-    // reload
+
     $stmt = $pdo->prepare("SELECT * FROM resumes WHERE id = :id");
     $stmt->execute(['id' => $resume_id]);
     $resume = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    // refresh variables
+ 
     $skills = decode_or_lines($resume['skills'], []);
     $achievements = decode_or_lines($resume['achievements'], []);
     $experience = decode_or_lines($resume['professional_experience'], []);
@@ -156,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $education = decode_or_lines($resume['education'], []);
     $additional_info = decode_or_lines($resume['additional_info'], []);
 
-    // normalize again (same as above)
+   
     if (!empty($achievements) && is_array($achievements) && isset($achievements[0]) && is_string($achievements[0])) {
         $achievements = array_map(function($t){ return ['title'=> $t, 'description'=> '']; }, $achievements);
     }
@@ -394,7 +392,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </div>
 
 <script>
-  // small helpers to add item blocks dynamically
+ 
   function createSkill(value='') {
     const div = document.createElement('div'); div.className='item';
     div.innerHTML = `<button type="button" class="remove" onclick="this.parentElement.remove()">Remove</button>

@@ -35,7 +35,7 @@ function renderItem($item, $section = '') {
 
     if (isset($item['name']) || isset($item['title'])) {
         $heading = htmlspecialchars($item['name'] ?? $item['title']);
-        // For experience roles, make the heading bold
+     
         if (strtolower($section) === 'experience') {
             $out .= "<h3 class='sub-head role'>{$heading}</h3>";
         } else {
@@ -121,7 +121,7 @@ function renderList($data, $title, $id = '') {
     .main-nav a{margin:0 10px;color:#0ea5ff;text-decoration:none;font-weight:600;}
     .main-nav a:hover{text-decoration:underline;}
     .hero-section{text-align:center;padding:100px 20px;}
-    .hero-section h1{font-size:40px;margin-bottom:10px;color:#0ea5ff;} /* Name in blue */
+    .hero-section h1{font-size:40px;margin-bottom:10px;color:#0ea5ff;} 
     .hero-section p{font-size:18px;max-width:700px;margin:0 auto 10px;}
     .section{padding:30px 20px;}
     .container{max-width:900px;margin:0 auto;}
@@ -132,15 +132,15 @@ function renderList($data, $title, $id = '') {
     .sub-card p{margin:0;line-height:1.5;color:#dfe7f3;}
     .sub-head{margin:0 0 8px 0;color:#fff;font-size:16px;}
     .sub-field{margin:6px 0;color:#cfdcec;}
-    .role { font-weight:700; color:#fff; } /* Role bold only */
+    .role { font-weight:700; color:#fff; } 
 
-    /* Blue SKILLS pills */
+    
     .skills-wrap { display:flex; flex-wrap:wrap; gap:12px; margin-top:14px; }
     .skill-pill {
       display:inline-block;
       padding:10px 18px;
       border-radius:999px;
-      background:#0ea5ff; /* Blue skill containers */
+      background:#0ea5ff; 
       color:#fff;
       font-weight:600;
       box-shadow: 0 6px 18px rgba(0,170,255,0.2);
