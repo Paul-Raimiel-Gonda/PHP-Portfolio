@@ -7,40 +7,92 @@ if (!isset($_SESSION['username'])) {
     exit();
 }
 
+// Lookup current user from session
+$username = $_SESSION['username'];
+$userStmt = $pdo->prepare("SELECT id, username FROM users WHERE username = :username");
+$userStmt->execute(['username' => $username]);
+$user = $userStmt->fetch(PDO::FETCH_ASSOC);
+if (!$user) {
+    // session username invalid — force logout
+    header("Location: logout.php");
+    exit();
+}
+$user_id = (int)$user['id'];
 
-$resume_id = 1;
-
-
-$stmt = $pdo->prepare("SELECT * FROM resumes WHERE id = :id");
-$stmt->execute(['id' => $resume_id]);
-$resume = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$resume) {
-    die("Resume (id=1) not found. Please ensure a row with id=1 exists in the resumes table.");
+/**
+ * Helper: fetch resume by id
+ */
+function fetch_resume($pdo, $id) {
+    $s = $pdo->prepare("SELECT * FROM resumes WHERE id = :id");
+    $s->execute(['id' => $id]);
+    return $s->fetch(PDO::FETCH_ASSOC);
 }
 
-
+/**
+ * Decode stored JSON or newline text into php array
+ */
 function decode_or_lines($value, $default = []) {
     if ($value === null || $value === '') return $default;
     $d = json_decode($value, true);
     if (json_last_error() === JSON_ERROR_NONE && is_array($d)) return $d;
-  
     $lines = array_filter(array_map('trim', preg_split("/\r\n|\n|\r/", $value)));
     return $lines ?: $default;
 }
 
+/**
+ * Determine which resume the user will edit:
+ * - If ?id= provided => load that resume and ensure it belongs to logged-in user
+ * - Otherwise: find resume WHERE user_id = current user. If none, create an empty resume row for them.
+ */
+$requested_id = isset($_GET['id']) ? (int)$_GET['id'] : null;
+$resume = null;
+$resume_id = null;
 
-$skills = decode_or_lines($resume['skills'], []);
-$achievements = decode_or_lines($resume['achievements'], []);
-$experience = decode_or_lines($resume['professional_experience'], []);
-$organizations = decode_or_lines($resume['organization'], []);
-$education = decode_or_lines($resume['education'], []);
-$additional_info = decode_or_lines($resume['additional_info'], []);
+if ($requested_id) {
+    $maybe = fetch_resume($pdo, $requested_id);
+    if (!$maybe) {
+        die("Resume ID {$requested_id} not found.");
+    }
+    if ((int)($maybe['user_id'] ?? 0) !== $user_id) {
+        die("Permission denied. You may only edit your own resume.");
+    }
+    $resume = $maybe;
+    $resume_id = $requested_id;
+} else {
+    // find resume owned by this user
+    $s = $pdo->prepare("SELECT * FROM resumes WHERE user_id = :uid LIMIT 1");
+    $s->execute(['uid' => $user_id]);
+    $resume = $s->fetch(PDO::FETCH_ASSOC);
+    if ($resume) {
+        $resume_id = (int)$resume['id'];
+    } else {
+        // Create a blank resume row for this user (Postgres RETURNING id)
+        $ins = $pdo->prepare("INSERT INTO resumes (user_id, name, title, summary) VALUES (:uid, '', '', '') RETURNING id");
+        $ins->execute(['uid' => $user_id]);
+        $new = $ins->fetch(PDO::FETCH_ASSOC);
+        if ($new && isset($new['id'])) {
+            $resume_id = (int)$new['id'];
+            $resume = fetch_resume($pdo, $resume_id);
+        } else {
+            // fallback: try without RETURNING (some setups)
+            $ins2 = $pdo->prepare("INSERT INTO resumes (user_id, name, title, summary) VALUES (:uid, '', '', '')");
+            $ins2->execute(['uid' => $user_id]);
+            $resume_id = $pdo->lastInsertId();
+            $resume = fetch_resume($pdo, $resume_id);
+        }
+    }
+}
 
+// Pre-decode arrays for the form
+$skills = decode_or_lines($resume['skills'] ?? '', []);
+$achievements = decode_or_lines($resume['achievements'] ?? '', []);
+$experience = decode_or_lines($resume['professional_experience'] ?? '', []);
+$organizations = decode_or_lines($resume['organization'] ?? '', []);
+$education = decode_or_lines($resume['education'] ?? '', []);
+$additional_info = decode_or_lines($resume['additional_info'] ?? '', []);
 
-
+// Convert older string-lists into structured arrays for the form UI
 if (!empty($achievements) && is_array($achievements) && isset($achievements[0]) && is_string($achievements[0])) {
- 
     $achievements = array_map(function($t){ return ['title'=> $t, 'description'=> '']; }, $achievements);
 }
 if (!empty($experience) && is_array($experience) && isset($experience[0]) && is_string($experience[0])) {
@@ -58,15 +110,42 @@ if (!empty($additional_info) && is_array($additional_info) && isset($additional_
 
 $message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
+    // Basic text fields
     $name = trim($_POST['name'] ?? '');
     $title = trim($_POST['title'] ?? '');
     $summary = trim($_POST['summary'] ?? '');
     $training = trim($_POST['training'] ?? '');
 
-  
+    // handle profile image upload (if any)
+    $profile_image_path = $resume['profile_image'] ?? '';
+    if (!empty($_FILES['profile_image']['name'])) {
+        $targetDir = "uploads/";
+        if (!is_dir($targetDir)) mkdir($targetDir, 0755, true);
+
+        // basic mime check
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime = finfo_file($finfo, $_FILES['profile_image']['tmp_name']);
+        finfo_close($finfo);
+        $allowed = ['image/jpeg','image/png','image/gif','image/webp'];
+        if (!in_array($mime, $allowed, true)) {
+            $message = "Uploaded file is not an allowed image type (jpg/png/gif/webp).";
+        } else {
+            $fileName = basename($_FILES['profile_image']['name']);
+            // sanitize filename a bit
+            $fileName = preg_replace('/[^A-Za-z0-9_\-\.]/', '_', $fileName);
+            $targetPath = $targetDir . time() . "_" . $fileName;
+            if (move_uploaded_file($_FILES['profile_image']['tmp_name'], $targetPath)) {
+                $profile_image_path = $targetPath;
+            } else {
+                $message = "Failed to move uploaded file.";
+            }
+        }
+    }
+
+    // Collect arrays from POST (skills simple list)
     $post_skills = array_values(array_filter(array_map('trim', (array)($_POST['skills'] ?? []))));
-    // Achievements: arrays of title/description
+
+    // achievements
     $post_ach = [];
     $ach_titles = $_POST['achievements_title'] ?? [];
     $ach_descs = $_POST['achievements_desc'] ?? [];
@@ -76,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($t !== '' || $d !== '') $post_ach[] = ['title'=>$t, 'description'=>$d];
     }
 
-    // Experience
+    // experience
     $post_exp = [];
     $exp_roles = $_POST['exp_role'] ?? [];
     $exp_details = $_POST['exp_details'] ?? [];
@@ -86,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($r !== '' || $d !== '') $post_exp[] = ['role'=>$r, 'details'=>$d];
     }
 
-    // Organizations
+    // organizations
     $post_orgs = [];
     $org_names = $_POST['org_name'] ?? [];
     $org_pos = $_POST['org_position'] ?? [];
@@ -98,7 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($n !== '' || $p !== '' || $y !== '') $post_orgs[] = ['name'=>$n,'position'=>$p,'year'=>$y];
     }
 
-    // Education
+    // education
     $post_edu = [];
     $edu_degree = $_POST['edu_degree'] ?? [];
     $edu_school = $_POST['edu_school'] ?? [];
@@ -110,7 +189,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($deg !== '' || $sch !== '' || $tm !== '') $post_edu[] = ['degree'=>$deg,'school'=>$sch,'time'=>$tm];
     }
 
-    // Additional info (title + content)
+    // additional info
     $post_add = [];
     $add_title = $_POST['add_title'] ?? [];
     $add_content = $_POST['add_content'] ?? [];
@@ -120,59 +199,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($t !== '' || $c !== '') $post_add[] = ['title'=>$t,'content'=>$c];
     }
 
-  
-    $updates = [];
-    $params = [];
-  
-    $updates[] = "name = :name"; $params['name']=$name;
-    $updates[] = "title = :title"; $params['title']=$title;
-    $updates[] = "summary = :summary"; $params['summary']=$summary;
-    $updates[] = "training = :training"; $params['training']=$training;
+    // Only proceed to DB update if no prior file-upload error message
+    if ($message === '') {
+        $updates = [];
+        $params = [];
 
-    $updates[] = "skills = :skills"; $params['skills'] = json_encode($post_skills, JSON_UNESCAPED_UNICODE);
-    $updates[] = "achievements = :achievements"; $params['achievements'] = json_encode($post_ach, JSON_UNESCAPED_UNICODE);
-    $updates[] = "professional_experience = :professional_experience"; $params['professional_experience'] = json_encode($post_exp, JSON_UNESCAPED_UNICODE);
-    $updates[] = "organization = :organization"; $params['organization'] = json_encode($post_orgs, JSON_UNESCAPED_UNICODE);
-    $updates[] = "education = :education"; $params['education'] = json_encode($post_edu, JSON_UNESCAPED_UNICODE);
-    $updates[] = "additional_info = :additional_info"; $params['additional_info'] = json_encode($post_add, JSON_UNESCAPED_UNICODE);
+        $updates[] = "name = :name"; $params['name']=$name;
+        $updates[] = "title = :title"; $params['title']=$title;
+        $updates[] = "summary = :summary"; $params['summary']=$summary;
+        $updates[] = "training = :training"; $params['training']=$training;
 
-    $params['id'] = $resume_id;
-    $sql = "UPDATE resumes SET " . implode(', ', $updates) . " WHERE id = :id";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
+        $updates[] = "skills = :skills"; $params['skills'] = json_encode($post_skills, JSON_UNESCAPED_UNICODE);
+        $updates[] = "achievements = :achievements"; $params['achievements'] = json_encode($post_ach, JSON_UNESCAPED_UNICODE);
+        $updates[] = "professional_experience = :professional_experience"; $params['professional_experience'] = json_encode($post_exp, JSON_UNESCAPED_UNICODE);
+        $updates[] = "organization = :organization"; $params['organization'] = json_encode($post_orgs, JSON_UNESCAPED_UNICODE);
+        $updates[] = "education = :education"; $params['education'] = json_encode($post_edu, JSON_UNESCAPED_UNICODE);
+        $updates[] = "additional_info = :additional_info"; $params['additional_info'] = json_encode($post_add, JSON_UNESCAPED_UNICODE);
+        $updates[] = "profile_image = :profile_image"; $params['profile_image'] = $profile_image_path;
 
+        $params['id'] = $resume_id;
+        $sql = "UPDATE resumes SET " . implode(', ', $updates) . " WHERE id = :id AND user_id = :user_id";
+        // ensure the resume being updated belongs to the logged-in user
+        $params['user_id'] = $user_id;
 
-    $stmt = $pdo->prepare("SELECT * FROM resumes WHERE id = :id");
-    $stmt->execute(['id' => $resume_id]);
-    $resume = $stmt->fetch(PDO::FETCH_ASSOC);
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
 
- 
-    $skills = decode_or_lines($resume['skills'], []);
-    $achievements = decode_or_lines($resume['achievements'], []);
-    $experience = decode_or_lines($resume['professional_experience'], []);
-    $organizations = decode_or_lines($resume['organization'], []);
-    $education = decode_or_lines($resume['education'], []);
-    $additional_info = decode_or_lines($resume['additional_info'], []);
+        // reload updated resume
+        $resume = fetch_resume($pdo, $resume_id);
 
-   
-    if (!empty($achievements) && is_array($achievements) && isset($achievements[0]) && is_string($achievements[0])) {
-        $achievements = array_map(function($t){ return ['title'=> $t, 'description'=> '']; }, $achievements);
+        // refresh decoded arrays for the form UI
+        $skills = decode_or_lines($resume['skills'], []);
+        $achievements = decode_or_lines($resume['achievements'], []);
+        $experience = decode_or_lines($resume['professional_experience'], []);
+        $organizations = decode_or_lines($resume['organization'], []);
+        $education = decode_or_lines($resume['education'], []);
+        $additional_info = decode_or_lines($resume['additional_info'], []);
+
+        // canonicalize older formats again
+        if (!empty($achievements) && is_array($achievements) && isset($achievements[0]) && is_string($achievements[0])) {
+            $achievements = array_map(function($t){ return ['title'=> $t, 'description'=> '']; }, $achievements);
+        }
+        if (!empty($experience) && is_array($experience) && isset($experience[0]) && is_string($experience[0])) {
+            $experience = array_map(function($t){ return ['role'=> '', 'details'=> $t]; }, $experience);
+        }
+        if (!empty($organizations) && is_array($organizations) && isset($organizations[0]) && is_string($organizations[0])) {
+            $organizations = array_map(function($t){ return ['name'=> $t, 'position'=>'','year'=>'']; }, $organizations);
+        }
+        if (!empty($education) && is_array($education) && isset($education[0]) && is_string($education[0])) {
+            $education = array_map(function($t){ return ['degree'=> $t, 'school'=>'', 'time'=>'']; }, $education);
+        }
+        if (!empty($additional_info) && is_array($additional_info) && isset($additional_info[0]) && is_string($additional_info[0])) {
+            $additional_info = array_map(function($t){ return ['title'=>'', 'content'=>$t]; }, $additional_info);
+        }
+
+        $message = "The resume has been updated successfully!";
     }
-    if (!empty($experience) && is_array($experience) && isset($experience[0]) && is_string($experience[0])) {
-        $experience = array_map(function($t){ return ['role'=> '', 'details'=> $t]; }, $experience);
-    }
-    if (!empty($organizations) && is_array($organizations) && isset($organizations[0]) && is_string($organizations[0])) {
-        $organizations = array_map(function($t){ return ['name'=> $t, 'position'=>'','year'=>'']; }, $organizations);
-    }
-    if (!empty($education) && is_array($education) && isset($education[0]) && is_string($education[0])) {
-        $education = array_map(function($t){ return ['degree'=> $t, 'school'=>'', 'time'=>'']; }, $education);
-    }
-    if (!empty($additional_info) && is_array($additional_info) && isset($additional_info[0]) && is_string($additional_info[0])) {
-        $additional_info = array_map(function($t){ return ['title'=>'', 'content'=>$t]; }, $additional_info);
-    }
-
-    $message = "The resume has been updated successfully!";
 }
+
 ?>
 <!doctype html>
 <html lang="en">
@@ -224,6 +308,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     .footer-links { text-align:center; margin-top:16px; color:#ddd; }
     a { color:var(--accent); text-decoration:none; font-weight:600; }
 
+    img.profile-preview { width:120px; height:120px; object-fit:cover; border-radius:8px; display:block; margin-bottom:12px; }
+
     @media(max-width:760px){
       .row { flex-direction:column; }
       .container { margin:30px 12px; padding:20px; }
@@ -239,7 +325,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <?php if ($message): ?><div class="msg"><?= htmlspecialchars($message) ?></div><?php endif; ?>
 
-    <form method="POST" id="resumeForm">
+    <!-- note: include ?id= so the page remains editing the current resume id if it was passed -->
+    <form method="POST" id="resumeForm" enctype="multipart/form-data" action="resume_edit.php<?= $requested_id ? '?id=' . intval($requested_id) : '' ?>">
       <div class="section-block">
         <label for="name">Full Name</label>
         <input id="name" name="name" value="<?= htmlspecialchars($resume['name'] ?? '') ?>">
@@ -253,6 +340,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <div class="section-block">
         <label for="summary">Summary</label>
         <textarea id="summary" name="summary"><?= htmlspecialchars($resume['summary'] ?? '') ?></textarea>
+      </div>
+
+      <!-- PROFILE IMAGE -->
+      <div class="section-block">
+        <label>Profile Picture</label>
+        <?php if (!empty($resume['profile_image'])): ?>
+          <img src="<?= htmlspecialchars($resume['profile_image']) ?>" alt="Profile" class="profile-preview">
+        <?php endif; ?>
+        <input type="file" name="profile_image" accept="image/*">
       </div>
 
       <!-- SKILLS -->
@@ -274,7 +370,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <label>Achievements</label>
         <button type="button" class="btn-inline add" id="addAchievement">+ Add Achievement</button>
         <div id="achList" class="items">
-          <?php foreach ($achievements as $i => $a): 
+          <?php foreach ($achievements as $i => $a):
                 $t = htmlspecialchars($a['title'] ?? '');
                 $d = htmlspecialchars($a['description'] ?? '');
           ?>
@@ -381,18 +477,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
       </div>
 
-  
       <button type="submit" class="save">Save Changes</button>
     </form>
 
     <div class="footer-links">
-      <a href="public_resume.php?id=1">View Public Resume</a> |
+      <a href="public_resume.php?id=<?= intval($resume_id) ?>">View Public Resume</a> |
       <a href="logout.php">Logout</a>
     </div>
   </div>
 
 <script>
- 
+ // Dynamic field creation functions (kept from your code)
   function createSkill(value='') {
     const div = document.createElement('div'); div.className='item';
     div.innerHTML = `<button type="button" class="remove" onclick="this.parentElement.remove()">Remove</button>

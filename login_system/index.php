@@ -88,20 +88,9 @@
       box-shadow: 0 12px 30px rgba(14,165,255,0.4);
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    @keyframes slideDown {
-      to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes fadeUp {
-      to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes bounce {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(8px); }
-    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideDown { to { opacity: 1; transform: translateY(0); } }
+    @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
 <body>
@@ -112,8 +101,8 @@
 
   <div class="landing">
     <h1>STUDENT PORTFOLIO</h1>
-    <p>My personal showcase of skills and achievements</p>
-    <a href="public_resume.php?id=1">Start</a>
+    <p>Showcasing talent, skills, and experiences</p>
+    <a href="resume_home.php">Start</a>
   </div>
 </body>
 </html>
